@@ -1,0 +1,15 @@
+[project]
+name = "probe-runner"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # vLLM is installed in editable mode via setup_vllm.sh
+    # If you want to use it as a git dependency instead, uncomment below:
+    # "vllm @ git+https://github.com/YOUR_USERNAME/vllm.git",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
