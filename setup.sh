@@ -117,18 +117,20 @@ else
     fi
 fi
 
-# Install torch from CPU index (required for vLLM on CPU)
-# This must be done separately to avoid index conflicts with other packages
-echo "Installing PyTorch (CPU version)..."
-uv pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cpu
-
-# Install vLLM's common dependencies
-echo "Installing vLLM common dependencies..."
+# Install common dependencies first
 uv pip install -r "$vllm_fork_dir/requirements/common.txt"
 
-# Install vLLM's CPU-specific dependencies
-echo "Installing vLLM CPU dependencies..."
-uv pip install -r "$vllm_fork_dir/requirements/cpu.txt"
+# Detect hardware and install appropriate vLLM dependencies
+if command -v nvidia-smi &> /dev/null && nvidia-smi &> /dev/null; then
+    echo "CUDA detected. Installing vLLM CUDA dependencies..."
+        
+    # Install CUDA-specific dependencies
+    uv pip install -r "$vllm_fork_dir/requirements/cuda.txt"
+else
+    echo "No CUDA detected. Installing vLLM CPU dependencies..."
+    echo "Warning: vLLM on CPU has limited functionality and performance."
+    uv pip install -r "$vllm_fork_dir/requirements/cpu.txt"
+fi
 
 # Install vLLM as editable package
 echo "Installing vLLM in editable mode..."
