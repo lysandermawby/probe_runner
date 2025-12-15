@@ -9,6 +9,14 @@ wheels/
 # Virtual environments
 .venv
 
+# environment variables
+.env
+
 # development files
 tests/
 
+# Ruff
+.ruff_cache/
+
+# IDE
+.vscode/

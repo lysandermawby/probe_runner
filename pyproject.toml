@@ -1,15 +1,28 @@
 [project]
 name = "probe-runner"
 version = "0.1.0"
-description = "Add your description here"
+description = "vLLM inference with activation probing"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    # vLLM is installed in editable mode via setup_vllm.sh
+    # vLLM is installed in editable mode via setup.sh
     # If you want to use it as a git dependency instead, uncomment below:
-    # "vllm @ git+https://github.com/YOUR_USERNAME/vllm.git",
+    # "vllm @ git+https://github.com/lysandermawby/vllm.git",
+    # PyTorch (CPU version) - installed from PyTorch CPU index
+    # Note: These are installed via uv pip in setup.sh to avoid index conflicts
+    # Core dependencies (vLLM's requirements are installed by setup.sh)
+    # Pin numpy to remain compatible with numba (numba requires <=2.2.x)
+    "numpy<2.3",
+    "setuptools",
+    "transformers>=4.56.0,<5",
+    "tokenizers>=0.21.1",
+    "sentencepiece",
+    "protobuf",
+    "requests>=2.26.0",
+    "tqdm",
+    "pydantic>=2.12.0",
+    "pillow",
+    "pyyaml",
+    "click>=8.3.1",
+    "python-dotenv>=1.2.1",
 ]
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
