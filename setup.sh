@@ -58,6 +58,20 @@ fi
 vllm_fork_url="https://github.com/lysandermawby/vllm.git"
 vllm_fork_dir="vllm"
 
+# Initialize and update git submodules if this is a git repository
+if [ -d ".git" ]; then
+    # Remove empty vllm directory if it exists (common when cloning without --recurse-submodules)
+    if [ -d "$vllm_fork_dir" ] && [ ! -d "$vllm_fork_dir/.git" ]; then
+        echo -e "${YELLOW}Found empty vllm submodule directory. Removing...${NC}"
+        rm -rf "$vllm_fork_dir"
+    fi
+    
+    echo -e "${GREEN}Initializing git submodules...${NC}"
+    git submodule update --init --recursive || {
+        echo -e "${YELLOW}Warning: Failed to initialize some submodules. Continuing anyway...${NC}"
+    }
+fi
+
 # Parse flags
 UPDATE_VLLM=false
 REINSTALL_VLLM=false
@@ -85,6 +99,7 @@ done
 
 # Handle vLLM fork
 if [ -d "$vllm_fork_dir/.git" ]; then
+    # vLLM submodule is properly initialized
     if [ "$REINSTALL_VLLM" = true ]; then
         echo "Reinstalling vLLM in editable mode..."
         uv pip install -e "$vllm_fork_dir"
@@ -99,21 +114,15 @@ if [ -d "$vllm_fork_dir/.git" ]; then
     else
         echo "vLLM fork present. Skipping vLLM clone/update. (Use --update-vllm or --reinstall-vllm if needed.)"
     fi
-else
-    if [ -d "$vllm_fork_dir" ]; then
-        echo -e "${YELLOW}Found existing $vllm_fork_dir without git metadata. This should be removed...${NC}"
-        echo -e "If you want to remove this work which does not have relevant git information, run:"
-        echo -e "  rm -rf \"$vllm_fork_dir\""
-        echo -e "Skipping vLLM setup."
-    else
-        echo "Cloning vLLM fork..."
-        git clone "$vllm_fork_url" "$vllm_fork_dir"
-        echo "Installing vLLM common dependencies..."
-        uv pip install -r "$vllm_fork_dir/requirements/common.txt"
-        echo "Installing vLLM CPU dependencies..."
-        uv pip install -r "$vllm_fork_dir/requirements/cpu.txt"
-        echo "Installing vLLM in editable mode..."
-        uv pip install -e "$vllm_fork_dir"
+elif [ -d "$vllm_fork_dir" ]; then
+    # Directory exists but isn't a git repo - remove it and reinitialize
+    echo -e "${YELLOW}Found $vllm_fork_dir without git metadata. Removing and reinitializing...${NC}"
+    rm -rf "$vllm_fork_dir"
+    if [ -d ".git" ]; then
+        git submodule update --init --recursive "$vllm_fork_dir" || {
+            echo -e "${RED}Failed to initialize vllm submodule.${NC}"
+            exit 1
+        }
     fi
 fi
 
