@@ -6,6 +6,7 @@ Smart model downloading and inference methods, optimising available hardware
 
 # package imports
 import os
+import sys
 # from vllm import LLM, SamplingParams # lazily imported
 import click # for CLI
 from dotenv import load_dotenv
@@ -44,8 +45,14 @@ class ModelHandler:
         # Fix tokenizers parallelism warnings
         os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
         # Workaround for V1 engine serialization bug on CPU/macOS
-        # This allows pickle-based serialization as a fallback
-        os.environ.setdefault("VLLM_ALLOW_INSECURE_SERIALIZATION", "1")
+        # Only enable insecure serialization on CPU/macOS, not on GPU
+        # On GPU, use default msgspec serialization to avoid ValidationError
+        if torch.cuda.is_available() and not sys.platform.startswith("darwin"):
+            # Explicitly disable on GPU to avoid serialization format mismatches
+            os.environ.pop("VLLM_ALLOW_INSECURE_SERIALIZATION", None)
+        else:
+            # Enable on CPU/macOS where it's needed
+            os.environ.setdefault("VLLM_ALLOW_INSECURE_SERIALIZATION", "1")
         # os.environ['VLLM_LOGGING_LEVEL'] = 'ERROR'  # suppress large numbers of logs from the vLLM instance
 
 
