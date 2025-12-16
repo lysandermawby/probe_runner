@@ -10,13 +10,37 @@ from vllm import LLM, SamplingParams
 import click # for CLI
 from dotenv import load_dotenv
 import torch # for device checking - native dependency of vLLM
+from activation_extraction import ActivationExtractor
 
 class ModelHandler:
     """load, download, and run models using vllm"""
-    def __init__(self, model_name, local_files_only=False, device='cuda'):
-        """initialise the ModelHandler including loading the model"""
+    def __init__(
+        self,
+        model_name,
+        local_files_only=False,
+        device='cuda',
+        extract_activations=False,
+        extract_layers=None,
+    ):
+        """initialise the ModelHandler including loading the model
+        
+        extracted_activations: If this is True, all activations will be extracted from the model. Otherwise, no activations will be extracted.
+        extract_layers: List of layer indices to extract activations from
+        extract_activations: If this is True, all activations will be  from the model. Otherwise, no activations will be extracted.
+        """
         self.local_files_only = local_files_only
         self.model_name = model_name
+        self.extract_activations = extract_activations
+        self.extract_layers = extract_layers
+        
+        # Initialize activation extractor if enabled
+        self.activation_extractor = None
+        if self.extract_activations:
+            self.activation_extractor = ActivationExtractor(
+                extract_layers=self.extract_layers,
+                enabled=True,
+            )
+        
         self.set_environ()
         self.set_huggingface_cache()
         self.load_model()
@@ -37,7 +61,7 @@ class ModelHandler:
 
         # default huggingface cache
         default_hf_home = "~/.cache/huggingface"
-        default_hf_cache = os.path.join(os.path.expanduser(default_hf_home), "hub")
+        # default_hf_cache = os.path.join(os.path.expanduser(default_hf_home), "hub")
 
         # Set HuggingFace cache directory to use local cache (only if not already set)
         if "HF_HOME" not in os.environ:
@@ -79,6 +103,46 @@ class ModelHandler:
             model = self.model_name,
             download_dir = self.HF_CACHE_DIR
         )
+        
+        # Register activation extraction hooks if enabled
+        if self.activation_extractor is not None:
+            # Access the underlying model through the engine
+            engine = self.model.llm_engine
+            
+            # Try the new get_model() method (available in recent versions)
+            # This is the recommended approach going forward
+            if hasattr(engine, 'get_model'):
+                model = engine.get_model()
+                if model is not None:
+                    self.activation_extractor.register_model(model)
+                    print("Registered activation extraction hooks on model (via get_model)")
+            
+            # Legacy path for V0 engine and older versions
+            elif hasattr(engine, 'model_executor'):
+                # For V0 engine with model_executor
+                model_executor = engine.model_executor
+                
+                # Try to get driver_worker
+                if hasattr(model_executor, 'driver_worker'):
+                    worker = model_executor.driver_worker
+                    if hasattr(worker, 'model_runner') and hasattr(worker.model_runner, 'model'):
+                        model = worker.model_runner.model
+                        self.activation_extractor.register_model(model)
+                        print("Registered activation extraction hooks on model (via driver_worker)")
+                # Try workers array as fallback
+                elif hasattr(model_executor, 'workers'):
+                    workers = model_executor.workers
+                    if workers and len(workers) > 0:
+                        worker = workers[0]
+                        if hasattr(worker, 'model_runner') and hasattr(worker.model_runner, 'model'):
+                            model = worker.model_runner.model
+                            self.activation_extractor.register_model(model)
+                            print("Registered activation extraction hooks on model (via workers[0])")
+            
+            # V1 engine path (note: V1 uses a different multiprocess architecture)
+            # Direct model access is more limited in V1 due to the process separation
+            else:
+                print("Warning: Could not access model. No expected APIs found")
 
 
     def check_model_in_cache(self):
@@ -105,7 +169,10 @@ class ModelHandler:
 
     def generate(self, prompt, max_tokens=None, max_length=None, max_new_tokens=100,
         temperature=1.0, top_p=1.0, top_k=0, repetition_penalty=1.0, stop=None, **kwargs):
-        """Running inference using transformers-like API."""
+        """
+        Running inference using transformers-like API.
+        Activations are stored in self.activation_extractor.activation_store
+        """
         # Handle max_length/max_new_tokens for transformers compatibility
         max_tokens = max_tokens or max_length or max_new_tokens
 
@@ -125,11 +192,27 @@ class ModelHandler:
         params_dict.update(kwargs)
         sampling_params = SamplingParams(**params_dict)
 
+        # Set request context for activation extraction
+        if self.activation_extractor is not None:
+            # Generate a simple request ID for this generation
+            request_id = f"req_{id(prompt)}"
+            self.activation_extractor.set_request_context([request_id])
+
         outputs = self.model.generate([prompt], sampling_params)
 
         generated_text = outputs[0].outputs[0].text
+        
+        # Clear request context after generation
+        if self.activation_extractor is not None:
+            self.activation_extractor.clear_request_context()
     
         return generated_text
+    
+    def get_activation_store(self):
+        """Get the activation store for probe computation."""
+        if self.activation_extractor is not None:
+            return self.activation_extractor.get_activation_store()
+        return None
 
 
 

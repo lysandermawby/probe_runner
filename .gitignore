@@ -14,6 +14,7 @@ wheels/
 
 # development files
 tests/
+docs/
 
 # Ruff
 .ruff_cache/

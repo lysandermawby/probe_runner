@@ -102,6 +102,16 @@ if [ -d "$vllm_fork_dir/.git" ]; then
     # vLLM submodule is properly initialized
     if [ "$REINSTALL_VLLM" = true ]; then
         echo "Reinstalling vLLM in editable mode..."
+        # Set MAX_JOBS if not already set
+        if [ -z "$MAX_JOBS" ]; then
+            if command -v nvidia-smi &> /dev/null && nvidia-smi &> /dev/null; then
+                export MAX_JOBS=4
+                echo -e "${YELLOW}Setting MAX_JOBS=4 for CUDA build to prevent OOM. Override with: export MAX_JOBS=N${NC}"
+            else
+                export MAX_JOBS=8
+                echo -e "${YELLOW}Setting MAX_JOBS=8 for CPU build. Override with: export MAX_JOBS=N${NC}"
+            fi
+        fi
         uv pip install -e "$vllm_fork_dir"
     elif [ "$UPDATE_VLLM" = true ]; then
         echo "vLLM fork present. Updating..."
@@ -110,6 +120,16 @@ if [ -d "$vllm_fork_dir/.git" ]; then
             echo -e "${YELLOW}Could not fast-forward vLLM fork. Please resolve manually.${NC}"
         }
         echo "Reinstalling vLLM in editable mode after update..."
+        # Set MAX_JOBS if not already set
+        if [ -z "$MAX_JOBS" ]; then
+            if command -v nvidia-smi &> /dev/null && nvidia-smi &> /dev/null; then
+                export MAX_JOBS=4
+                echo -e "${YELLOW}Setting MAX_JOBS=4 for CUDA build to prevent OOM. Override with: export MAX_JOBS=N${NC}"
+            else
+                export MAX_JOBS=8
+                echo -e "${YELLOW}Setting MAX_JOBS=8 for CPU build. Override with: export MAX_JOBS=N${NC}"
+            fi
+        fi
         uv pip install -e "$vllm_fork_dir"
     else
         echo "vLLM fork present. Skipping vLLM clone/update. (Use --update-vllm or --reinstall-vllm if needed.)"
@@ -143,4 +163,20 @@ fi
 
 # Install vLLM as editable package
 echo "Installing vLLM in editable mode..."
+# Set MAX_JOBS to prevent OOM during CUDA compilation
+# CUDA compilation is memory-intensive, so limit parallelism
+if [ -z "$MAX_JOBS" ]; then
+    # Default to 4 jobs for CUDA builds to avoid OOM
+    # Users can override by setting MAX_JOBS before running this script
+    if command -v nvidia-smi &> /dev/null && nvidia-smi &> /dev/null; then
+        export MAX_JOBS=4
+        echo -e "${YELLOW}Setting MAX_JOBS=4 for CUDA build to prevent OOM. Override with: export MAX_JOBS=N${NC}"
+    else
+        # For CPU builds, use more parallelism
+        export MAX_JOBS=8
+        echo -e "${YELLOW}Setting MAX_JOBS=8 for CPU build. Override with: export MAX_JOBS=N${NC}"
+    fi
+else
+    echo -e "${GREEN}Using MAX_JOBS=$MAX_JOBS (set by environment)${NC}"
+fi
 uv pip install -e "$vllm_fork_dir"
