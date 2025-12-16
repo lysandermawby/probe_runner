@@ -6,7 +6,7 @@ Smart model downloading and inference methods, optimising available hardware
 
 # package imports
 import os
-from vllm import LLM, SamplingParams
+# from vllm import LLM, SamplingParams # lazily imported
 import click # for CLI
 from dotenv import load_dotenv
 import torch # for device checking - native dependency of vLLM
@@ -80,6 +80,10 @@ class ModelHandler:
 
     def load_model(self):
         """load model using vLLM"""
+        # Lazy import vLLM here to avoid registry subprocess conflicts
+        # Importing at module level causes registry to be loaded, which breaks subprocess
+        from vllm import LLM
+        
         if self.local_files_only and not self.check_model_in_cache():
             available_models = self.list_models_in_cache()
             raise ValueError(
@@ -194,6 +198,8 @@ class ModelHandler:
             params_dict["stop"] = stop
         
         params_dict.update(kwargs)
+        # Lazy import SamplingParams to avoid early vLLM module loading
+        from vllm import SamplingParams
         sampling_params = SamplingParams(**params_dict)
 
         # Set request context for activation extraction
