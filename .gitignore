@@ -21,3 +21,7 @@ docs/
 
 # IDE
 .vscode/
+
+# Ignore compiled vLLM tarballs
+vllm_with_compiled_extensions_cu128.tar.gz
+vllm_compiled_*.tar.gz
