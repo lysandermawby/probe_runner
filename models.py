@@ -10,7 +10,6 @@ from vllm import LLM, SamplingParams
 import click # for CLI
 from dotenv import load_dotenv
 import torch # for device checking - native dependency of vLLM
-from activation_extraction import ActivationExtractor
 
 class ModelHandler:
     """load, download, and run models using vllm"""
@@ -33,13 +32,8 @@ class ModelHandler:
         self.extract_activations = extract_activations
         self.extract_layers = extract_layers
         
-        # Initialize activation extractor if enabled
+        # activation extractor isn't created until after model initialisation
         self.activation_extractor = None
-        if self.extract_activations:
-            self.activation_extractor = ActivationExtractor(
-                extract_layers=self.extract_layers,
-                enabled=True,
-            )
         
         self.set_environ()
         self.set_huggingface_cache()
@@ -103,6 +97,16 @@ class ModelHandler:
             model = self.model_name,
             download_dir = self.HF_CACHE_DIR
         )
+        
+        # Now that model is loaded, we can safely import and create activation extractor
+        # This prevents vLLM registry subprocess issues
+        if self.extract_activations:
+            # Lazy import - only import after model is loaded
+            from activation_extraction import ActivationExtractor
+            self.activation_extractor = ActivationExtractor(
+                extract_layers=self.extract_layers,
+                enabled=True,
+            )
         
         # Register activation extraction hooks if enabled
         if self.activation_extractor is not None:
