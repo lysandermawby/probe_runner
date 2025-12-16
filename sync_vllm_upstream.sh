@@ -21,14 +21,20 @@ upstream_branch="main"
 github_fork="lysandermawby/vllm"
 github_sync_branch="main"
 
-# Check if vllm directory exists
-if [ ! -d "$vllm_dir" ] || [ ! -d "$vllm_dir/.git" ]; then
-    echo -e "${RED}vLLM directory not found or not a git repository${NC}"
+# Check if vllm directory exists and is a git repository
+if [ ! -d "$vllm_dir" ]; then
+    echo -e "${RED}vLLM directory not found${NC}"
     echo -e "${YELLOW}   Run setup.sh first to clone the vLLM fork${NC}"
     exit 1
 fi
 
 cd "$vllm_dir"
+
+if ! git rev-parse --git-dir >/dev/null 2>&1; then
+    echo -e "${RED}vLLM directory is not a git repository${NC}"
+    echo -e "${YELLOW}   Run setup.sh first to clone the vLLM fork${NC}"
+    exit 1
+fi
 
 # Check current branch
 current_branch=$(git branch --show-current 2>/dev/null || echo "")
